@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    .chat-container {
+      width: 80%;
+      margin: 20px auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .messages {
+      height: 300px;
+      overflow-y: scroll;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .message {
+      margin: 5px 0;
+    }
+    .message.user {
+      text-align: right;
+      color: blue;
+    }
+    .message.assistant {
+      text-align: left;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <h2>WebSocket Chat</h2>
+    <div class="messages" id="messages"></div>
+    <input type="text" id="messageInput" placeholder="Type your message..." />
+    <button onclick="sendMessage()">Send</button>
+    <button onclick="startNewChat()">Start New Chat</button>
+  </div>
+
+  <script>
+    // let ws = new WebSocket("ws://127.0.0.1:8000/ws/user123");
+    let ws = new WebSocket("ws://virtual-backend.testyourapp.online/ws/user123");
+    let threadId = ""; // Store the thread_id globally
+    ws.onmessage = function(event) {
+    const messagesDiv = document.getElementById("messages");
+    
+    // Extract thread_id and message from the received data
+    const receivedText = event.data;
+    const threadMatch = receivedText.match(/thread_id:\s*([^\s,]+)/);
+    const messageMatch = receivedText.match(/message:\s*(.+)/);
+
+    const extractedThreadId = threadMatch ? threadMatch[1] : "Unknown Thread";
+    const extractedMessage = messageMatch ? messageMatch[1] : "No response received";
+
+    // Update the thread ID if not already set
+    if (!threadId || threadId !== extractedThreadId) {
+        threadId = extractedThreadId;
+        console.log("Updated thread ID:", threadId);
+    }
+
+    // Display assistant's message
+    const messageElement = document.createElement("div");
+    messageElement.classList.add("message", "assistant");
+    messageElement.textContent = extractedMessage;
+    messagesDiv.appendChild(messageElement);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom
+};
+
+  
+    ws.onopen = function() {
+        console.log("WebSocket connected.");
+        // Fetch initial thread_id if empty
+        if (!threadId) {
+            startNewChat();
+        }
+    };
+  
+    ws.onclose = function() {
+        console.log("WebSocket closed.");
+    };
+  
+    ws.onerror = function(error) {
+        console.error("WebSocket error:", error);
+    };
+  
+    function sendMessage() {
+        const input = document.getElementById("messageInput");
+        const userMessage = input.value.trim();
+  
+        if (!threadId) {
+            console.error("No thread ID available. Please start a new chat.");
+            return;
+        }
+  
+        if (userMessage) {
+            // Display user's message
+            const messagesDiv = document.getElementById("messages");
+            const message = document.createElement("div");
+            message.classList.add("message", "user");
+            message.textContent = userMessage;
+            messagesDiv.appendChild(message);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom
+  
+            // Send to WebSocket with current threadId
+            ws.send(JSON.stringify({ thread_id: threadId, content: userMessage }));
+            input.value = ""; // Clear the input field
+        }
+    }
+  
+    function startNewChat() {
+        // Clear chat messages
+        const messagesDiv = document.getElementById("messages");
+        messagesDiv.innerHTML = "";
+  
+        // Make API call to get new threadId
+        console.log("Starting a new chat...");
+  
+        // Uncomment for local development
+        // fetch("http://127.0.0.1:8000/create-chat", {
+        //     method: "POST",
+        //     headers: { "Content-Type": "application/json" }
+        // })
+  
+        fetch("https://virtual-backend.testyourapp.online/create-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Failed to create a new chat");
+            }
+            return response.json();
+        })
+        .then(data => {
+            threadId = data; // Update thread ID with the new one
+            console.log("New chat started with thread ID:", threadId);
+        })
+        .catch(error => {
+            console.error("Error starting new chat:", error);
+        });
+    }
+  </script>
+</body>
+</html>
